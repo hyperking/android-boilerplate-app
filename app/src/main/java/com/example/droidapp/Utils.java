@@ -96,7 +96,6 @@ public class Utils {
     }
 
     public static void postDataToServer(Context context, HashMap<String, Object> deviceData, String url) {
-
         // Stringify ServerData as JSON
         String jsonData = gson.toJson(deviceData);
 

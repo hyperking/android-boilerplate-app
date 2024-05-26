@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">DroidApp</string>
-    <string name="web_view_app">...</string>
-    <string name="server_uri">...</string>
+    <string name="web_view_app">http://192.168.0.5:3000/demo</string>
+    <string name="server_uri">http://192.168.0.5:8050/api/processor</string>
     <string name="server_delay">5000</string>
 </resources>

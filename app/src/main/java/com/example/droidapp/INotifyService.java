@@ -26,6 +26,7 @@ import java.util.Locale;
 /* Monitors Incoming Notifications */
 public class INotifyService extends NotificationListenerService {
     public static interface Actions {
+        String GRANTED_READ_SMS = "GRANTED_READ_SMS";
         String ON_NOTIFICATION_POSTED = "ON_NOTIFICATION_POSTED";
         String ON_NOTIFICATION_DISMISS = "ON_NOTIFICATION_DISMISS";
         String ON_NOTIFICATION_GRANTED = "ON_NOTIFICATION_GRANTED";
@@ -49,7 +50,8 @@ public class INotifyService extends NotificationListenerService {
     public static String TRIGGER;
     public static int smsPrevCount;
     public static int smsMaxCount = 10;
-    public static final String MODEL = "[title, text, type, time]";
+    public static final String NOTE_MODEL = "[title, text, type, time]";
+    public static final String SMS_MODEL = "[content, phone, recvdOn, sntOn, isread, thrd]";
 
     public static String[] note;
     public static String[] smsMsgs;
@@ -109,10 +111,6 @@ public class INotifyService extends NotificationListenerService {
                 smsPrevCount = cursor.getCount();
                 cursor.close();
                 smsMsgs = smsMessages.toArray(new String[0]);
-//                intent.setAction(Actions.SEND_SMS_MSGS);
-//                intent.putExtra("data", Utils.gson.toJson(smsMessages));
-
-//                LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
             }
         } catch (Exception e) {
             Log.e(TAG, "Error retrieving SMS messages", e);
@@ -128,8 +126,6 @@ public class INotifyService extends NotificationListenerService {
         INotifyService.note = note;
         // Handle the notification as needed
         intent.setAction(Actions.ON_NOTIFICATION_POSTED);
-//        intent.setAction(TRIGGER==null ? Actions.ON_NOTIFICATION_POSTED : TRIGGER);
-//        intent.putExtra("data", Utils.gson.toJson(note));
         setAllSmsMessages();
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
         String msg = "Notification Posted: Package: " +", Title: " + note[0] + ", Text: " + note[1];
